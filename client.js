@@ -2,7 +2,7 @@
 const io = require('socket.io-client');
 const readline = require('readline');
 
-const SERVER_URL = 'http://localhost:3000';
+const SERVER_URL = 'https://clichat-production.up.railway.app';
 
 let username = '';
 let messages = [];
@@ -11,7 +11,7 @@ const MAX_MESSAGES = 100;
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout,
-  prompt: '>>_ '
+  prompt: '>> '
 });
 
 function clearScreen() {
