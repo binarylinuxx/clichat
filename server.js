@@ -17,34 +17,50 @@ const PORT = process.env.PORT || 3000;
 let messages = [];
 const MAX_MESSAGES = 100;
 const users = new Map();
+const userColors = new Map();
+
+const COLORS = [
+  'red', 'green', 'yellow', 'blue', 'magenta', 'cyan',
+  'brightRed', 'brightGreen', 'brightYellow', 'brightBlue',
+  'brightMagenta', 'brightCyan'
+];
+
+function getRandomColor() {
+  return COLORS[Math.floor(Math.random() * COLORS.length)];
+}
 
 io.on('connection', (socket) => {
   console.log(`User connected: ${socket.id}`);
 
   socket.on('join', (username) => {
+    const color = getRandomColor();
     users.set(socket.id, username);
-    
+    userColors.set(socket.id, color);
+
     io.emit('userJoined', {
       username,
+      color,
       timestamp: Date.now()
     });
-    
-    console.log(`${username} joined the chat`);
+
+    console.log(`${username} joined the chat with color ${color}`);
   });
 
   socket.on('message', (data) => {
+    const color = userColors.get(socket.id) || 'white';
     const messageData = {
       username: data.username,
       message: data.message,
+      color: color,
       timestamp: Date.now()
     };
-    
+
     messages.push(messageData);
-    
+
     if (messages.length > MAX_MESSAGES) {
       messages = messages.slice(-MAX_MESSAGES);
     }
-    
+
     io.emit('message', messageData);
   });
 
@@ -56,6 +72,7 @@ io.on('connection', (socket) => {
         timestamp: Date.now()
       });
       users.delete(socket.id);
+      userColors.delete(socket.id);
       console.log(`${username} left the chat`);
     }
   });
