@@ -2,7 +2,8 @@
 const io = require('socket.io-client');
 const readline = require('readline');
 
-const SERVER_URL = 'http://server.binary.sophron.ru';
+// Using manual choice url
+//const SERVER_URL = 'http://server.binary.sophron.ru';
 
 let username = '';
 let messages = [];
@@ -127,12 +128,28 @@ async function getUserName() {
   });
 }
 
+// Chioice your server. Alternative is server.binary.sophron.ru
+async function getServerUrl() {
+  return new Promise((resolve) => {
+    rl.question('Enter server URL: ', (url) => {
+      const cleanUrl = url.trim();
+      if (!cleanUrl) {
+        resolve('http://server.binary.sophron.ru'); 
+      } else {
+        resolve(cleanUrl);
+      }
+    });
+  });
+}
+
 async function main() {
   updateTerminalSize();
   clearScreen();
-  username = await getUserName();
   
-  const socket = io(SERVER_URL, {
+  username = await getUserName();
+  server_url = await getServerUrl();
+  
+  const socket = io(server_url, {
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 5
