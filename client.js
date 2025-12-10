@@ -147,7 +147,7 @@ async function main() {
   clearScreen();
   
   username = await getUserName();
-  server_url = await getServerUrl();
+  const server_url = await getServerUrl();
   
   const socket = io(server_url, {
     reconnection: true,
