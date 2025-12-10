@@ -1,13 +1,31 @@
 // format.js - Encodes text into special characters and decodes it back
 
+const crypto = require('crypto');
+
 const SPECIAL_CHARS = ['!', '@', '$', '%', '#', '&', '*', '~', '+', '=', '^'];
 const BASE = SPECIAL_CHARS.length;
 
-function encode(text) {
+function encode(text, salt = null) {
   if (!text) {
     throw new Error('Text cannot be empty');
   }
 
+  // If salt is provided, use secure hashing (for passwords)
+  if (salt !== null) {
+    const hash = crypto.pbkdf2Sync(text, salt, 10000, 32, 'sha256');
+    let encoded = '';
+
+    for (let i = 0; i < hash.length; i++) {
+      const byte = hash[i];
+      const digit1 = Math.floor(byte / BASE);
+      const digit2 = byte % BASE;
+      encoded += SPECIAL_CHARS[digit1 % BASE] + SPECIAL_CHARS[digit2];
+    }
+
+    return `${salt}:${encoded}`;
+  }
+
+  // Original encoding for non-password text
   let encoded = '';
 
   for (let i = 0; i < text.length; i++) {
@@ -22,6 +40,30 @@ function encode(text) {
   }
 
   return encoded;
+}
+
+function hashPassword(password) {
+  if (!password) {
+    throw new Error('Password cannot be empty');
+  }
+
+  // Generate random salt
+  const salt = crypto.randomBytes(16).toString('hex');
+  return encode(password, salt);
+}
+
+function verifyPassword(password, storedHash) {
+  if (!password || !storedHash) {
+    return false;
+  }
+
+  try {
+    const [salt] = storedHash.split(':');
+    const newHash = encode(password, salt);
+    return newHash === storedHash;
+  } catch (error) {
+    return false;
+  }
 }
 
 function decode(encodedText) {
@@ -62,12 +104,16 @@ if (require.main === module) {
 
   if (args.length === 0) {
     console.log('Usage:');
-    console.log('  node format.js encode <text>     - Encode text');
-    console.log('  node format.js decode <encoded>  - Decode text');
+    console.log('  node format.js encode <text>           - Encode text');
+    console.log('  node format.js decode <encoded>        - Decode text');
+    console.log('  node format.js hash <password>         - Hash password');
+    console.log('  node format.js verify <password> <hash> - Verify password');
     console.log('');
     console.log('Examples:');
-    console.log('  node format.js encode "mypassword123"');
+    console.log('  node format.js encode "mytext"');
     console.log('  node format.js decode "!@$%#&..."');
+    console.log('  node format.js hash "mypassword123"');
+    console.log('  node format.js verify "mypassword123" "salt:hash..."');
     process.exit(0);
   }
 
@@ -81,9 +127,17 @@ if (require.main === module) {
     } else if (command === 'decode') {
       const decoded = decode(input);
       console.log('Decoded:', decoded);
+    } else if (command === 'hash') {
+      const hashed = hashPassword(input);
+      console.log('Hashed:', hashed);
+    } else if (command === 'verify') {
+      const password = args[1];
+      const hash = args[2];
+      const valid = verifyPassword(password, hash);
+      console.log('Valid:', valid);
     } else {
       console.error('Unknown command:', command);
-      console.log('Use "encode" or "decode"');
+      console.log('Use "encode", "decode", "hash", or "verify"');
       process.exit(1);
     }
   } catch (error) {
@@ -92,4 +146,4 @@ if (require.main === module) {
   }
 }
 
-module.exports = { encode, decode };
+module.exports = { encode, decode, hashPassword, verifyPassword };

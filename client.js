@@ -1,9 +1,14 @@
 // client.js
 const io = require('socket.io-client');
 const readline = require('readline');
+const fs = require('fs');
+const path = require('path');
+const { hashPassword, verifyPassword } = require('./format.js');
 
 // Using manual choice url
 //const SERVER_URL = 'http://server.binary.sophron.ru';
+
+const USER_FILE = path.join(process.cwd(), 'user.json');
 
 let username = '';
 let messages = [];
@@ -128,6 +133,50 @@ async function getUserName() {
   });
 }
 
+async function getPassword() {
+  return new Promise((resolve) => {
+    rl.question('Input your Password: ', (password) => {
+      resolve(password.trim());
+    });
+  });
+}
+
+async function getAuthChoice() {
+  return new Promise((resolve) => {
+    rl.question('Do you have an account? (y/n): ', (answer) => {
+      resolve(answer.trim().toLowerCase() === 'y');
+    });
+  });
+}
+
+// Local storage functions
+function loadUser() {
+  if (fs.existsSync(USER_FILE)) {
+    try {
+      const data = fs.readFileSync(USER_FILE, 'utf-8');
+      return JSON.parse(data);
+    } catch (error) {
+      console.error('Error reading user file:', error.message);
+      return null;
+    }
+  }
+  return null;
+}
+
+function saveUser(name, password) {
+  try {
+    const userData = {
+      name: name,
+      password: hashPassword(password)
+    };
+    fs.writeFileSync(USER_FILE, JSON.stringify(userData, null, 2));
+    return true;
+  } catch (error) {
+    console.error('Error saving user file:', error.message);
+    return false;
+  }
+}
+
 // Chioice your server. Alternative is server.binary.sophron.ru
 async function getServerUrl() {
   return new Promise((resolve) => {
@@ -142,13 +191,87 @@ async function getServerUrl() {
   });
 }
 
+async function authenticateLocal() {
+  const existingUser = loadUser();
+
+  if (existingUser) {
+    console.log(`Found existing account: ${existingUser.name}`);
+    const useExisting = await new Promise((resolve) => {
+      rl.question('Use this account? (y/n): ', (answer) => {
+        resolve(answer.trim().toLowerCase() === 'y');
+      });
+    });
+
+    if (useExisting) {
+      const password = await getPassword();
+      if (verifyPassword(password, existingUser.password)) {
+        username = existingUser.name;
+        console.log('Login successful!');
+        return true;
+      } else {
+        console.log('Invalid password.');
+        return false;
+      }
+    }
+  }
+
+  // New account or user chose not to use existing
+  const hasAccount = await getAuthChoice();
+
+  if (hasAccount) {
+    // Login with existing credentials
+    username = await getUserName();
+    const password = await getPassword();
+
+    const user = loadUser();
+    if (user && user.name === username && verifyPassword(password, user.password)) {
+      console.log('Login successful!');
+      return true;
+    } else {
+      console.log('Invalid username or password.');
+      return false;
+    }
+  } else {
+    // Register new account
+    username = await getUserName();
+
+    if (username.length < 3) {
+      console.log('Username must be at least 3 characters.');
+      return false;
+    }
+
+    const password = await getPassword();
+
+    if (password.length < 6) {
+      console.log('Password must be at least 6 characters.');
+      return false;
+    }
+
+    if (saveUser(username, password)) {
+      console.log('Registration successful!');
+      return true;
+    } else {
+      console.log('Failed to save account.');
+      return false;
+    }
+  }
+}
+
 async function main() {
   updateTerminalSize();
   clearScreen();
-  
-  username = await getUserName();
+
+  // Authenticate locally first
+  const authenticated = await authenticateLocal();
+
+  if (!authenticated) {
+    console.log('Authentication failed. Please restart the client.');
+    process.exit(1);
+  }
+
+  // Then choose server
   const server_url = await getServerUrl();
-  
+
   const socket = io(server_url, {
     reconnection: true,
     reconnectionDelay: 1000,
